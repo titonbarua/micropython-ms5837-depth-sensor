@@ -1,20 +1,17 @@
-"""
-This module implements a micropython class to read data from MS5837 pressure sensors.
+"""This module implements a base class to read data from MS5837 sensors.
+
+Author: Titon Barua <baruat@email.sc.edu, titon@vimmaniac.com>
+
 """
 import asyncio
 from array import array
+from math import log2
 import time
 
 from micropython import const
-from machine import I2C
-
-_I2C_ADDR = const(0x76)
 
 # Command to reset the sensor.
 _CMD_RESET = const(0x1E)
-
-# Supported oversampling rates.
-_OSR_RATES = (256, 512, 1024, 2048, 4096)
 
 # We are just defining the base commands here as the rest can be derived using
 # a simple formula:
@@ -62,7 +59,8 @@ class MS5837SensorBase(object):
     _I2C_ADDR = 0x76
 
     # Recommended wait time (in microseconds) for ADC conversions.
-    _OSR_ADC_READ_DELAYS_US = (10000, 10000, 10000, 10000, 10000)
+    _OSR_ADC_READ_DELAYS_US = array(
+        'H', [10000, 10000, 10000, 10000, 10000])
 
     # Sensor IDs supported by this class.
     _SUPPORTED_SENSOR_IDS = ()
@@ -82,14 +80,12 @@ class MS5837SensorBase(object):
         - pressure_osr: (int) Pressure oversampling rate.
         - temperature_osr: (int) Temperature oversampling rate.
         """
-        try:
-            p_osr_idx = _OSR_RATES.index(pressure_osr)
-        except KeyError:
-            raise MS5837OsrUnsupported()
 
-        try:
-            t_osr_idx = _OSR_RATES.index(temperature_osr)
-        except KeyError:
+        # Supported oversampling rates are: 256, 512, 1024, 2048, 4096
+        p_osr_idx = int(log2(pressure_osr)) - 8
+        t_osr_idx = int(log2(temperature_osr)) - 8
+        if not ((0 <= p_osr_idx <= 4) and
+                (0 <= t_osr_idx <= 4)):
             raise MS5837OsrUnsupported()
 
         # Determine conversion command and read delays for given osr.
@@ -118,7 +114,7 @@ class MS5837SensorBase(object):
             # Send reset command.
             self._tx_buff[0] = _CMD_RESET
             n_ack = self._i2c_obj.writeto(
-                self._i2c_addr, self._tx_buff)
+                self._I2C_ADDR, self._tx_buff)
 
             # If reset command is properly acknowledged, return True.
             if n_ack == 1:
@@ -127,7 +123,7 @@ class MS5837SensorBase(object):
             # If reset command was not acknowledged, the data-sheet recommends
             # sending several SCL-s and trying reset again. We can send SCL-s
             # by trying to read a byte.
-            self._i2c_obj.readfrom(self._i2c_addr, 1)
+            self._i2c_obj.readfrom(self._I2C_ADDR, 1)
         else:
             return False
 
@@ -139,7 +135,7 @@ class MS5837SensorBase(object):
         """
         self._tx_buff[0] = self._p_conv_cmd
         n_ack = self._i2c_obj.writeto(
-            self._i2c_addr, self._tx_buff)
+            self._I2C_ADDR, self._tx_buff)
 
         return n_ack == 1
 
@@ -151,7 +147,7 @@ class MS5837SensorBase(object):
         """
         self._tx_buff[0] = self._t_conv_cmd
         n_ack = self._i2c_obj.writeto(
-            self._i2c_addr, self._tx_buff)
+            self._I2C_ADDR, self._tx_buff)
 
         return n_ack == 1
 
@@ -165,7 +161,7 @@ class MS5837SensorBase(object):
         self._tx_buff[0] = _CMD_READ_ADC
         for _ in range(max_tries):
             n_ack = self._i2c_obj.writeto(
-                self._i2c_addr, self._tx_buff)
+                self._I2C_ADDR, self._tx_buff)
 
             if n_ack == 1:
                 break
@@ -174,7 +170,7 @@ class MS5837SensorBase(object):
 
         # Read ADC data into the given buffer.
         self._i2c_obj.readfrom_into(
-            self._i2c_addr, buff)
+            self._I2C_ADDR, buff)
 
         return True
 
@@ -188,12 +184,12 @@ class MS5837SensorBase(object):
 
             # Send read command.
             n_ack = self._i2c_obj.writeto(
-                self._i2c_addr, self._tx_buff)
+                self._I2C_ADDR, self._tx_buff)
             if n_ack != 1:
                 raise MS5837CommFailure()
 
             # Read back prom data.
-            self._i2c_obj.readfrom_into(self._i2c_addr, rx_buff)
+            self._i2c_obj.readfrom_into(self._I2C_ADDR, rx_buff)
             print(rx_buff)
             self._prom_data[i] = (
                 rx_buff[0] << 8 | rx_buff[1])
@@ -324,7 +320,7 @@ class MS5837SensorBase(object):
 
         return (p, t)
 
-    def _calc_pres_KPa_and_temp_C(
+    def _calc_pressure_KPa_and_temp_C(
             self,
             raw_p,
             raw_t,
@@ -359,7 +355,7 @@ class MS5837SensorBase(object):
 
         """
         p_raw, t_raw = self.read_raw(max_tries)
-        return self._calc_pres_KPa_and_temp_C(
+        return self._calc_pressure_KPa_and_temp_C(
             p_raw, t_raw, second_order_compensation)
 
     async def async_read(
@@ -372,5 +368,5 @@ class MS5837SensorBase(object):
 
         """
         p_raw, t_raw = await self.read_raw(max_tries)
-        return self._calc_pres_KPa_and_temp_C(
+        return self._calc_pressure_KPa_and_temp_C(
             p_raw, t_raw, second_order_compensation)

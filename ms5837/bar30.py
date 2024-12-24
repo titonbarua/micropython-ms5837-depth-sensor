@@ -1,5 +1,10 @@
+"""This module contains a class to interface with MS5837-30BA variant sensors.
+
+Author: Titon Barua <baruat@email.sc.edu, titon@vimmaniac.com>
+
 """
-"""
+from array import array
+
 from ms5837.base import MS5837SensorBase
 
 
@@ -8,9 +13,9 @@ class MS5837SensorBar30(MS5837SensorBase):
 
     _SUPPORTED_SENSOR_IDS = (0x1A,)
 
-    _OSR_ADC_READ_DELAYS_US = (600, 1170, 2280, 4540, 9040)
+    _OSR_ADC_READ_DELAYS_US = array('H', [600, 1170, 2280, 4540, 9040])
 
-    def _calc_pres_KPa_and_temp_C(
+    def _calc_pressure_KPa_and_temp_C(
             self,
             raw_p,
             raw_t,
