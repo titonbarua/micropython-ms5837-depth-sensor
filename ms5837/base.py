@@ -31,6 +31,8 @@ _CMD_READ_PROM_START = const(0xA0)
 _RX_BUFF_SIZE = const(3)
 _PROM_DATA_SIZE = const(7)
 
+_DEBUG = const(1)
+
 
 class MS5837Error(Exception):
     """Exception related to MS5837 sensor."""
@@ -80,6 +82,7 @@ class MS5837SensorBase(object):
         - pressure_osr: (int) Pressure oversampling rate.
         - temperature_osr: (int) Temperature oversampling rate.
         """
+        self._i2c_obj = i2c_obj
 
         # Supported oversampling rates are: 256, 512, 1024, 2048, 4096
         p_osr_idx = int(log2(pressure_osr)) - 8
@@ -92,7 +95,12 @@ class MS5837SensorBase(object):
         self._p_conv_cmd = _CMD_CONV_P_BASE + 2 * p_osr_idx
         self._t_conv_cmd = _CMD_CONV_T_BASE + 2 * t_osr_idx
         self._p_read_delay_us = self._OSR_ADC_READ_DELAYS_US[p_osr_idx]
+        self._p_read_delay_s = self._p_read_delay_us / 1.0e6
         self._t_read_delay_us = self._OSR_ADC_READ_DELAYS_US[t_osr_idx]
+        self._t_read_delay_s = self._t_read_delay_us / 1.0e6
+
+        # print(self._p_read_delay_s)
+        # print(self._t_read_delay_s)
 
         # Buffer to read calibration data out of chip PROM.
         self._prom_data = array('H', [0] * _PROM_DATA_SIZE)
@@ -151,28 +159,27 @@ class MS5837SensorBase(object):
 
         return n_ack == 1
 
-    def _fetch_adc_into(self, buff, max_tries):
+    def _fetch_adc_into(self, buff):
         """Read ADC data and store it in the buffer.
 
-        Returns `True` if ADC read command was acknowledged.
+        Returns `True` if read was successful.
 
         """
         # Try to send ADC read command.
         self._tx_buff[0] = _CMD_READ_ADC
-        for _ in range(max_tries):
-            n_ack = self._i2c_obj.writeto(
-                self._I2C_ADDR, self._tx_buff)
+        n_ack = self._i2c_obj.writeto(
+            self._I2C_ADDR, self._tx_buff)
 
-            if n_ack == 1:
-                break
-        else:
+        if not n_ack == 1:
             return False
 
         # Read ADC data into the given buffer.
-        self._i2c_obj.readfrom_into(
-            self._I2C_ADDR, buff)
+        try:
+            self._i2c_obj.readfrom_into(self._I2C_ADDR, buff)
+            return True
+        except OSError:
+            return False
 
-        return True
 
     def _read_prom(self):
         """Read builtin PROM data into the designated buffer."""
@@ -190,9 +197,10 @@ class MS5837SensorBase(object):
 
             # Read back prom data.
             self._i2c_obj.readfrom_into(self._I2C_ADDR, rx_buff)
-            print(rx_buff)
             self._prom_data[i] = (
                 rx_buff[0] << 8 | rx_buff[1])
+
+        print(self._prom_data)
 
     def _check_crc(self):
         """Check CRC4 value of the prom data."""
@@ -221,13 +229,13 @@ class MS5837SensorBase(object):
         crc = n_rem ^ 0x00
         # ----------------------------------------------'
 
-        print(f"CRC: {crc}, Expected CRC: {expected_crc}")
+        # print(f"crc: {crc}, expected crc: {expected_crc}")
         if not crc == expected_crc:
             raise MS5837PromCRCError()
 
     def _check_sensor_id(self):
         """Check sensor ID from prom data."""
-        sid = (self._prom_data[0] >> 5) & 0x7f
+        sid = (self._prom_data[0] >> 5) & 0x7F
         if sid not in self._SUPPORTED_SENSOR_IDS:
             raise MS5837SensorIDMismatch()
 
@@ -242,7 +250,7 @@ class MS5837SensorBase(object):
         # Read and verify PROM data.
         self._read_prom()
         self._check_crc()
-        self._check_sensor_id()
+        # self._check_sensor_id()
 
     def read_raw(self, max_tries):
         """Read raw pressure and temperature ADC values from sensor.
@@ -254,69 +262,109 @@ class MS5837SensorBase(object):
         Returns a tuple of format: (<pressure>, <temperature>).
 
         """
-        # Reset rx buffers.
-        for i in range(_RX_BUFF_SIZE):
-            self._rx_buff_1[i] = 0
-            self._rx_buff_2[i] = 0
+        # Copy buffer references locally.
+        rx_buff1 = self._rx_buff_1
+        rx_buff2 = self._rx_buff_2
+
+        # Reset rx buffers. Intentionally avoiding 'for' loop.
+        i = 0
+        while i < _RX_BUFF_SIZE:
+            rx_buff1[i] = 0
+            rx_buff2[i] = 0
+            i += 1
 
         # We convert and read temperature first, as that is the auxiliary
         # measurement and is much slower to change.
         if not self._adc_convert_t():
             raise MS5837CommFailure()
-        time.sleep_us(self._t_read_delay_us)
-        if not self._fetch_adc_into(self._rx_buff_1, max_tries):
+
+        i = 0
+        while i < max_tries:
+            time.sleep_us(self._t_read_delay_us)
+            if self._fetch_adc_into(rx_buff1):
+                break
+            i += 1
+        else:
             raise MS5837CommFailure()
 
         # Next, we read pressure.
         if not self._adc_convert_p():
             raise MS5837CommFailure()
-        time.sleep_us(self._p_read_delay_us)
-        if not self._fetch_adc_into(self._rx_buff_2, max_tries):
+
+        i = 0
+        while i < max_tries:
+            time.sleep_us(self._p_read_delay_us)
+            if self._fetch_adc_into(rx_buff2):
+                break
+            i += 1
+            if _DEBUG:
+                print("[DEBUG] ADC read failed!")
+        else:
             raise MS5837CommFailure()
 
         # Infer temperature value.
-        t = (self._rx_buff_1[0] << 16 |
-             self._rx_buff_1[1] << 8 |
-             self._rx_buff_1[2])
+        t = (rx_buff1[0] << 16 |
+             rx_buff1[1] << 8 |
+             rx_buff1[2])
 
         # Infer pressure value.
-        p = (self._rx_buff_2[0] << 16 |
-             self._rx_buff_2[1] << 8 |
-             self._rx_buff_2[2])
+        p = (rx_buff2[0] << 16 |
+             rx_buff2[1] << 8 |
+             rx_buff2[2])
 
         return (p, t)
 
-    async def read_raw_async(self, max_tries):
+    async def async_read_raw(self, max_tries):
         """Asynchronous version of `read_raw` function."""
+        # Copy buffer references locally.
+        rx_buff1 = self._rx_buff_1
+        rx_buff2 = self._rx_buff_2
+
         # Reset rx buffers.
-        for i in range(_RX_BUFF_SIZE):
-            self._rx_buff_1[i] = 0
-            self._rx_buff_2[i] = 0
+        i = 0
+        while i < _RX_BUFF_SIZE:
+            rx_buff1[i] = 0
+            rx_buff2[i] = 0
+            i += 1
 
         # We convert and read temperature first as that is the auxiliary
         # measurement and is much slower to change.
         if not self._adc_convert_t():
             raise MS5837CommFailure()
-        await asyncio.sleep_us(self._t_read_delay_us)
-        if not self._fetch_adc_into(self._rx_buff_1, max_tries):
+
+        i = 0
+        while i < max_tries:
+            await asyncio.sleep(self._t_read_delay_s)
+            if self._fetch_adc_into(rx_buff1):
+                break
+            i += 1
+        else:
             raise MS5837CommFailure()
 
         # Next, we read pressure.
         if not self._adc_convert_p():
             raise MS5837CommFailure()
-        await asyncio.sleep_us(self._p_read_delay_us)
-        if not self._fetch_adc_into(self._rx_buff_2, max_tries):
+
+        i = 0
+        while i < max_tries:
+            await asyncio.sleep(self._p_read_delay_s)
+            if self._fetch_adc_into(rx_buff2):
+                break
+            i += 1
+            if _DEBUG:
+                print("[DEBUG] ADC read failed!")
+        else:
             raise MS5837CommFailure()
 
         # Infer temperature value.
-        t = (self._rx_buff_1[0] << 16 |
-             self._rx_buff_1[1] << 8 |
-             self._rx_buff_1[2])
+        t = (rx_buff1[0] << 16 |
+             rx_buff1[1] << 8 |
+             rx_buff1[2])
 
         # Infer pressure value.
-        p = (self._rx_buff_2[0] << 16 |
-             self._rx_buff_2[1] << 8 |
-             self._rx_buff_2[2])
+        p = (rx_buff2[0] << 16 |
+             rx_buff2[1] << 8 |
+             rx_buff2[2])
 
         return (p, t)
 
@@ -367,6 +415,6 @@ class MS5837SensorBase(object):
         This is the asynchronous version of `read` method.
 
         """
-        p_raw, t_raw = await self.read_raw(max_tries)
+        p_raw, t_raw = await self.async_read_raw(max_tries)
         return self._calc_pressure_KPa_and_temp_C(
             p_raw, t_raw, second_order_compensation)
