@@ -67,10 +67,8 @@ def _create_sensor(type_, osr):
     return (i2c_obj, sensor)
 
 
-# _OSR_RATES = [256, 512, 1024, 2048, 4096]
 _BAR30_OSR_RATES = [256, 512, 1024, 2048, 4096]
 _BAR02_OSR_RATES = [256, 512, 1024, 2048, 4096, 8192]
-# [256, 512, 1024, 2048, 4096]
 
 # Number of measurements per OSR for timing.
 _N = 100
@@ -257,7 +255,7 @@ def print_depth(sensor_type, water_density=1000, interval_sec=1.0):
         while True:
             try:
                 d_m = depth_estimator.read_depth()
-                print("Depth: {:.2f} mm".format(d_m * 1000))
+                print("Depth: {:+.3f} cm".format(d_m * 100))
                 time.sleep(interval_sec)
             except KeyboardInterrupt:
                 break

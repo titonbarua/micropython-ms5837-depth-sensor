@@ -53,7 +53,7 @@ class MS5837SensorBar02(MS5837SensorBase):
         TEMP2 = (TEMP - Ti) * 0.01  # degree-C
         P2 = (
             (((D1 * SENS2) >> 21) - OFF2) >> 15
-        ) * 0.01  # mBar = KPa
+        ) * 0.001  # 1 KPa = 10 mBar
 
         # Units: (KPa, degree-C)
         return P2, TEMP2

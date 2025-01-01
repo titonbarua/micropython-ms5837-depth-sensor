@@ -31,7 +31,7 @@ class NaiveWaterDepthEstimator(object):
         self._p_ref = float(ref_pressure)
 
     def set_ref_pressure(self, n_measurements=10):
-        """Set reference pressure from measurements by the sensor."""
+        """Set reference pressure in KPa from measurements by the sensor."""
         s = 0.0
         for _ in range(n_measurements):
             p_abs, _ = self._ms5837.read()
@@ -48,7 +48,7 @@ class NaiveWaterDepthEstimator(object):
 
         # Liquid pressure, P = h x rho x g
         #               => h = P / (rho x g)
-        h = (p_rel * 100.0) / self._g_x_rho
+        h = (p_rel * 1000.0) / self._g_x_rho
 
         # Unit: m
         return h
