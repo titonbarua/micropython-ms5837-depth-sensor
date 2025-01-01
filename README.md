@@ -76,8 +76,8 @@ sensor = MS5837SensorBar30(
     pressure_osr=_OSR_RATE,
     temperature_osr=_OSR_RATE)
 
-task = sensor.async_read()
 while True:
+    task = sensor.async_read()
     pres, temp = asyncio.run(task)
     print(f"P: {pres} KPa, T: {temp} deg-C")
     time.sleep(1.0)
@@ -115,9 +115,12 @@ sensor = MS5837SensorBar30(
     temperature_osr=_OSR_RATE)
 
 depth_estimator = NaiveWaterDepthEstimator(sensor, _WATER_DENSITY)
+ref_pres = depth_estimator.set_ref_pressure()
+print(f"Reference pressure set to: {ref_pres:.3f} KPa")
+
 while True:
-    depth = depth_estimator.read_depth()
-    print("Depth: {:.2f} cm".format(depth / 100.0))
+    depth_m = depth_estimator.read_depth()
+    print("Depth: {:.2f} cm".format(depth_m * 100.0))
     time.sleep(1.0)
 ```
 
@@ -146,25 +149,25 @@ sensors, one MS5837-30BA and another MS5837-02BA were connected to I2C channels
 Benchmark blocking reads:
 
 ```bash
-mpremote exec `from rp2040_tests import *; benchmark_blocking_read(SENSOR_BAR30)`
+mpremote exec 'from rp2040_tests import *; benchmark_blocking_read(SENSOR_BAR30)'
 ```
 
 Benchmark asynchronous reads:
 
 ```bash
-mpremote exec `from rp2040_tests import *; benchmark_async_read(SENSOR_BAR02)`
+mpremote exec 'from rp2040_tests import *; benchmark_async_read(SENSOR_BAR02)'
 ```
 
 Continuously print pressure and temperature data:
 
 ```bash
-mpremote exec `from rp2040_tests import *; print_data(SENSOR_BAR30)`
+mpremote exec 'from rp2040_tests import *; print_data(SENSOR_BAR30)'
 ```
 
 Continuously print depth data:
 
 ```bash
-mpremote exec `from rp2040_tests import *; print_data(SENSOR_BAR02)`
+mpremote exec 'from rp2040_tests import *; print_data(SENSOR_BAR02)'
 ```
 
 
