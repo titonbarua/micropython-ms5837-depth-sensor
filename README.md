@@ -2,11 +2,11 @@
 
 This library implements a few micropython classes for reading data out of
 popular MS5837 family pressure sensors directly into a micro-controller. These
-sensors are commonly found in depth sensors made by BlueRobotics.
+devices are commonly found in depth sensors made by BlueRobotics.
 
 ## Features
 
-- API-s for both blocking reads and asynchronous reads with asyncio.
+- API-s for both blocking and asynchronous reads with asyncio.
 - Configurable oversampling rates, as supported by the sensors.
 - Minimal dynamic memory allocation for predictable performance.
 
@@ -90,7 +90,7 @@ for the ADC conversion.
 
 ### Depth estimation
 
-The `NaiveDepthEstimator` class can be used with a sensor object to estimate
+The `NaiveWaterDepthEstimator` class can be used with a sensor object to estimate
 depth.
 
 ```python
@@ -98,7 +98,7 @@ import asyncio
 import time
 from machine import I2C
 from ms5837.bar30 import MS5837SensorBar30
-from ms5837.depth import NaiveDepthEstimator
+from ms5837.depth import NaiveWaterDepthEstimator
 
 _SCL_PIN = "GP19"
 _SDA_PIN = "GP18"
@@ -114,14 +114,14 @@ sensor = MS5837SensorBar30(
     pressure_osr=_OSR_RATE,
     temperature_osr=_OSR_RATE)
 
-depth_estimator = NaiveDepthEstimator(sensor, _WATER_DENSITY)
+depth_estimator = NaiveWaterDepthEstimator(sensor, _WATER_DENSITY)
 while True:
     depth = depth_estimator.read_depth()
     print("Depth: {:.2f} cm".format(depth / 100.0))
     time.sleep(1.0)
 ```
 
-`NaiveDepthEstimator` also has an analogous `async_read_depth` method for
+`NaiveWaterDepthEstimator` also has an analogous `async_read_depth` method for
 asynchronous reading.
 
 
@@ -131,17 +131,17 @@ asynchronous reading.
 
 The tests were designed for an RP2040 micro-controller running micropython. Two
 sensors, one MS5837-30BA and another MS5837-02BA were connected to I2C channels
-1 and 0 of the micro-controller. The pin configuration is described in the
-beginning of `tests/rp2040_tests.py` file.
+1 and 0. The pin configuration is described in the beginning of
+[tests/rp2040_tests.py](./tests/rp2040_tests.py) file.
 
 
 ### Installation
 
 - Install the requirements with `pip install -r requirements.txt`.
-- Copy the necessary files to micro-controller by running `./tools/copy_files.sh`.
+- Copy the necessary files to micro-controller with command `./tools/copy_files.sh`.
 
 
-### Running tests
+### Starting a test
 
 Benchmark blocking reads:
 
@@ -228,7 +228,7 @@ non-extreme OSR values. This is caused by read errors and subsequent retries. My
 suspicion is on some bugs in the asyncio scheduler or sleep function.
 
 
-## TYMA (Things you might ask)
+## TYMA (Things You May Ask)
 
 ### Why not directly use the python library provided by BlueRobotics?
 
@@ -238,10 +238,11 @@ micropython environment, as it depends on `python-smbus` library.
 ### Do we really need to sample depths at high speeds?
 
 Yes. A sensor reading is not the end, rather the beginning of a proper
-estimation. High speed sampling allows one to reduce uncertainty estimates using
-various mathematical filtering techniques.
+estimation. High speed sampling allows one to reduce uncertainty boundary using
+various techniques i.e. maximum-a-posteriori(MAP) estimation, extended Kalman
+filters etc.
 
-### Why is the depth estimation class named `NaiveDepthEstimator`?
+### Why is the depth estimation class named `NaiveWaterDepthEstimator`?
 
 Depth estimation with the assumption that water density is constant is a naive
 approach in the context of mobile robotics. The class name prefix is a caution
@@ -261,17 +262,16 @@ the experiment might also be necessary.
 Some of the 30BA variant sensors available in the market don't have their sensor
 ID properly programmed in the PROM as specified by the data-sheet. I have
 encountered this issue in sensors from BlueRobotics and also from raw sensors
-from digikey. Other people have
-[reported](https://github.com/zephyrproject-rtos/zephyr/issues/60950) the same
-thing.
+from digikey. Others have reported the same
+[issue](https://github.com/zephyrproject-rtos/zephyr/issues/60950).
 
 
 ## License
 
-This software is distributed under MIT license. Look at the `LICENSE` file for
-the terms of distribution.
+This software is distributed under MIT license. Look at the [LICENSE](./LICENSE)
+file for the terms of distribution.
 
 
 ## Copyright
 
-2024 Titon Barua <baruat@email.sc.edu, titon@vimmaniac.com>
+2025 Titon Barua <baruat@email.sc.edu, titon@vimmaniac.com>
