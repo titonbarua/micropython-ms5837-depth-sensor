@@ -173,7 +173,7 @@ mpremote exec `from rp2040_tests import *; print_data(SENSOR_BAR02)`
 - Micro-controller: RPi Pico 2040 running at stock speed
 - Micropython version: 1.24.1
 
-|Benchmarking setup | Depth sanity checking with 5 Gallon water bottle|
+|Benchmarking setup | Depth sanity checking with a water bottle!|
 |------------------------------------|-------------------------------------------|
 |![Benchmarking Setup](./images/benchmarking_setup.jpg) | ![Depth Sanity Checking](./images/depth_sensor_sanity_checking_rig.jpg)|
 
