@@ -15,6 +15,10 @@ sensors are commonly found in depth sensors made by BlueRobotics.
 - MS5837-02BA
 - MS5837-30BA
 
+|Data Rate Benchmarking Setup | Depth Sanity Checking with 5 Gallon Water bottle|
+|------------------------------------|-------------------------------------------|
+|![Benchmarking Setup](./images/benchmarking_setup.jpg) | ![Depth Sanity Checking](./images/depth_sensor_sanity_checking_rig.jpg)|
+
 ## Example Usage
 
 ### Pressure and Temperature Measurement
