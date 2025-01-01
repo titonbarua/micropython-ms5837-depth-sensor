@@ -10,6 +10,7 @@ import time
 
 from micropython import const
 
+
 # Command to reset the sensor.
 _CMD_RESET = const(0x1E)
 
@@ -30,8 +31,6 @@ _CMD_READ_PROM_START = const(0xA0)
 
 _RX_BUFF_SIZE = const(3)
 _PROM_DATA_SIZE = const(7)
-
-_DEBUG = const(1)
 
 
 class MS5837Error(Exception):
@@ -60,20 +59,19 @@ class MS5837SensorBase(object):
     # Sensor I2C address.
     _I2C_ADDR = 0x76
 
-    # Recommended wait time (in microseconds) for ADC conversions.
-    _OSR_ADC_READ_DELAYS_US = array(
-        'H', [10000, 10000, 10000, 10000, 10000])
+    # List of recommended wait time (in microseconds) for ADC conversions.
+    _OSR_ADC_READ_DELAYS_US = NotImplemented
 
-    # Sensor IDs supported by this class.
-    _SUPPORTED_SENSOR_IDS = ()
-
-    # _osr_adc_read_delays_us = (600, 1170, 2280, 4540, 9040)
+    # List of sensor IDs supported by this class.
+    _SUPPORTED_SENSOR_IDS = NotImplemented
 
     def __init__(
             self,
             i2c_obj,
             pressure_osr=256,
             temperature_osr=256,
+            enable_sensor_id_check=False,
+            debug=False
     ):
         """Instantiate MS5837Sensor class.
 
@@ -81,26 +79,32 @@ class MS5837SensorBase(object):
         - i2c_obj: Micropython I2C object.
         - pressure_osr: (int) Pressure oversampling rate.
         - temperature_osr: (int) Temperature oversampling rate.
+        - enable_sensor_id_check: (bool) If True, sensor version is read and
+          matched from bits[11:5] of first PROM word. Set to False by default
+          as some of the 30BA sensors don't properly have their versions set
+          par data-sheet.
+        - debug: (bool) If True, reports communication retry attempts.
+
         """
         self._i2c_obj = i2c_obj
+        self._debug = debug
+        self._enable_sensor_id_check = enable_sensor_id_check
 
         # Supported oversampling rates are: 256, 512, 1024, 2048, 4096
-        p_osr_idx = int(log2(pressure_osr)) - 8
-        t_osr_idx = int(log2(temperature_osr)) - 8
-        if not ((0 <= p_osr_idx <= 4) and
-                (0 <= t_osr_idx <= 4)):
+        p_osr_idx = round(log2(pressure_osr)) - 8
+        t_osr_idx = round(log2(temperature_osr)) - 8
+        n_osr_rates = len(self._OSR_ADC_READ_DELAYS_US)
+        if not ((0 <= p_osr_idx < n_osr_rates) and
+                (0 <= t_osr_idx < n_osr_rates)):
             raise MS5837OsrUnsupported()
 
         # Determine conversion command and read delays for given osr.
         self._p_conv_cmd = _CMD_CONV_P_BASE + 2 * p_osr_idx
         self._t_conv_cmd = _CMD_CONV_T_BASE + 2 * t_osr_idx
         self._p_read_delay_us = self._OSR_ADC_READ_DELAYS_US[p_osr_idx]
-        self._p_read_delay_s = self._p_read_delay_us / 1.0e6
+        self._p_read_delay_s = round(self._p_read_delay_us / 1.0e6, 6)
         self._t_read_delay_us = self._OSR_ADC_READ_DELAYS_US[t_osr_idx]
-        self._t_read_delay_s = self._t_read_delay_us / 1.0e6
-
-        # print(self._p_read_delay_s)
-        # print(self._t_read_delay_s)
+        self._t_read_delay_s = round(self._t_read_delay_us / 1.0e6, 6)
 
         # Buffer to read calibration data out of chip PROM.
         self._prom_data = array('H', [0] * _PROM_DATA_SIZE)
@@ -180,7 +184,6 @@ class MS5837SensorBase(object):
         except OSError:
             return False
 
-
     def _read_prom(self):
         """Read builtin PROM data into the designated buffer."""
         base_addr = _CMD_READ_PROM_START
@@ -198,9 +201,7 @@ class MS5837SensorBase(object):
             # Read back prom data.
             self._i2c_obj.readfrom_into(self._I2C_ADDR, rx_buff)
             self._prom_data[i] = (
-                rx_buff[0] << 8 | rx_buff[1])
-
-        print(self._prom_data)
+                (rx_buff[0] << 8) | rx_buff[1])
 
     def _check_crc(self):
         """Check CRC4 value of the prom data."""
@@ -250,7 +251,14 @@ class MS5837SensorBase(object):
         # Read and verify PROM data.
         self._read_prom()
         self._check_crc()
-        # self._check_sensor_id()
+        self._init_constants()
+
+        # If enabled, do and ID check on the sensor.
+        if self._enable_sensor_id_check:
+            self._check_sensor_id()
+
+        # We no longer need prom data.
+        del self._prom_data
 
     def read_raw(self, max_tries):
         """Read raw pressure and temperature ADC values from sensor.
@@ -297,7 +305,7 @@ class MS5837SensorBase(object):
             if self._fetch_adc_into(rx_buff2):
                 break
             i += 1
-            if _DEBUG:
+            if self._debug:
                 print("[DEBUG] ADC read failed!")
         else:
             raise MS5837CommFailure()
@@ -351,7 +359,7 @@ class MS5837SensorBase(object):
             if self._fetch_adc_into(rx_buff2):
                 break
             i += 1
-            if _DEBUG:
+            if self._debug:
                 print("[DEBUG] ADC read failed!")
         else:
             raise MS5837CommFailure()
@@ -368,53 +376,41 @@ class MS5837SensorBase(object):
 
         return (p, t)
 
-    def _calc_pressure_KPa_and_temp_C(
-            self,
-            raw_p,
-            raw_t,
-            second_order_compensation):
+    def _init_constants(self):
+        """Prepare constants from prom data."""
+        raise NotImplementedError()
+
+    def _calc_pressure_temp(self, raw_p, raw_t):
         """Convert raw pressure and temperature into compensated physical units.
 
         Args:
         - raw_p: (unsigned int) Raw pressure value from ADC.
         - raw_t: (unsigned int) Raw temperature value from ADC.
-        - second_order_compensation: (bool) If `True`, an expensive, second
-          order compensation is calculated for optimum accuracy.
 
         Returns a tuple of format:
-          (<pressure-KPa>, <temperature-°C>).
+          (<pressure-KPa>, <temperature-degree-C>).
 
         """
         raise NotImplementedError()
 
-    def read(
-            self,
-            second_order_compensation=True,
-            max_tries=3):
+    def read(self, max_tries=3):
         """Read pressure and temperature in physical units.
 
         Args:
-        - second_order_compensation: (bool) If `True`, an expensive, second
-          order compensation is applied for optimum accuracy.
         - max_tries: (int) Maximum retries for I2C communication.
 
         Returns a tuple of format:
-          (<pressure-KPa>, <temperature-°C>)
+          (<pressure-KPa>, <temperature-degree-C>)
 
         """
         p_raw, t_raw = self.read_raw(max_tries)
-        return self._calc_pressure_KPa_and_temp_C(
-            p_raw, t_raw, second_order_compensation)
+        return self._calc_pressure_temp(p_raw, t_raw)
 
-    async def async_read(
-            self,
-            second_order_compensation=True,
-            max_tries=3):
+    async def async_read(self, max_tries=3):
         """Asynchronously read pressure and temperature.
 
         This is the asynchronous version of `read` method.
 
         """
         p_raw, t_raw = await self.async_read_raw(max_tries)
-        return self._calc_pressure_KPa_and_temp_C(
-            p_raw, t_raw, second_order_compensation)
+        return self._calc_pressure_temp(p_raw, t_raw)

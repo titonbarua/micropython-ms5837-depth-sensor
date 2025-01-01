@@ -27,8 +27,7 @@ class NaiveWaterDepthEstimator(object):
         - g: (optional) Gravitational constant in m/s^2.
         """
         self._ms5837 = ms5837_sensor_obj
-        self._g = g
-        self._rho = float(water_density)
+        self._g_x_rho = g * water_density
         self._p_ref = float(ref_pressure)
 
     def set_ref_pressure(self, n_measurements=10):
@@ -49,7 +48,7 @@ class NaiveWaterDepthEstimator(object):
 
         # Liquid pressure, P = h x rho x g
         #               => h = P / (rho x g)
-        h = p_rel / (self._rho * self._g)
+        h = p_rel / self._g_x_rho
         return h
 
     def read_depth(self):

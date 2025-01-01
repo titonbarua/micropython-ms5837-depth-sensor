@@ -4,6 +4,7 @@ Author: Titon Barua <baruat@email.sc.edu, titon@vimmaniac.com>
 
 """
 from ms5837.base import MS5837SensorBase
+from array import array
 
 
 class MS5837SensorBar02(MS5837SensorBase):
@@ -11,57 +12,37 @@ class MS5837SensorBar02(MS5837SensorBase):
 
     _SUPPORTED_SENSOR_IDS = (0x00, 0x15)
 
-    _OSR_ADC_READ_DELAYS_US = (560, 1100, 2170, 4320, 8610)
+    _OSR_ADC_READ_DELAYS_US = array('H', (560, 1100, 2170, 4320, 8610, 17020))
 
-    def _calc_pressure_KPa_and_temp_C(
-            self,
-            raw_p,
-            raw_t,
-            second_order_compensation):
-        """Convert raw pressure and temperature into compensated physical units.
+    def _init_constants(self):
+        C = self._prom_data
+        self._SENS_T1 = C[1] << 16
+        self._OFF_T1 = C[2] << 17
+        self._TCS = C[3]
+        self._TCO = C[4]
+        self._T_REF = C[5] << 8
+        self._TEMPSENS = C[6]
 
-        Args:
-        - raw_p: (unsigned int) Raw pressure value from ADC.
-        - raw_t: (unsigned int) Raw temperature value from ADC.
-        - second_order_compensation: (bool) If `True`, an expensive, second
-          order compensation applied for optimum accuracy.
-
-        Returns a tuple of format:
-          (<pressure-KPa>, <temperature-°C>).
-
-        """
-        C1 = self._prom_data[1]
-        C2 = self._prom_data[2]
-        C3 = self._prom_data[3]
-        C4 = self._prom_data[4]
-        C5 = self._prom_data[5]
-        C6 = self._prom_data[6]
-
+    def _calc_pressure_temp(self, raw_p, raw_t):
         D1 = raw_p
         D2 = raw_t
 
         # First order compensation.
-        dT = D2 - (C5 << 8)
-        TEMP = 2000 + ((dT * C6) // 8388608)  # 2^23 = 8388608
+        dT = D2 - self._T_REF
+        TEMP = 2000 + ((dT * self._TEMPSENS) >> 23)
 
-        OFF = (C2 << 17) + ((C4 * dT) // 64)
-        SENS = (C1 << 16) + ((C3 * dT) // 128)
+        OFF = self._OFF_T1 + ((self._TCO * dT) >> 6)
+        SENS = self._SENS_T1 + ((self._TCS * dT) >> 7)
         TEMP_C = TEMP * 0.01
 
-        if not second_order_compensation:
-            P = (((D1 * SENS) // 2097152) - OFF) // 32768  # 2^15 = 32768
-            # Units: (KPa, °C)
-            return (P * 0.01, TEMP_C)
-
         # Second order compensation.
-        # -----------------------------------------------------------,
         if TEMP_C < 20:
             # Low temperature.
-            Ti = (11 * dT * dT) // 34359738368  # 2^35 = 34359738368
-            tx = TEMP - 2000
-            tx2 = tx * tx
-            OFFi = (31 * tx2) // 8
-            SENSi = (63 * tx2) // 32
+            Ti = (11 * dT * dT) >> 35
+            x = TEMP - 2000
+            x *= x
+            OFFi = (31 * x) >> 3
+            SENSi = (63 * x) >> 5
         else:
             Ti = 0
             OFFi = 0
@@ -69,12 +50,10 @@ class MS5837SensorBar02(MS5837SensorBase):
 
         OFF2 = OFF - OFFi
         SENS2 = SENS - SENSi
-        TEMP2 = (TEMP - Ti) * 0.01  # °C
+        TEMP2 = (TEMP - Ti) * 0.01  # degree-C
         P2 = (
-            (((D1 * SENS2) // 2097152) - OFF2)  # 2^21 = 2097152
-            // 32768
+            (((D1 * SENS2) >> 21) - OFF2) >> 15
         ) * 0.01  # mBar = KPa
-        # -----------------------------------------------------------'
 
-        # Units: (KPa, °C)
-        return (P2, TEMP2)
+        # Units: (KPa, degree-C)
+        return P2, TEMP2
