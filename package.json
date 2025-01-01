@@ -1,0 +1,11 @@
+{
+  "urls": [
+     ["ms5837/__init__.py", "https://github.com/titonbarua/micropython-ms5837-depth-sensor/ms5837/__init__.py"],
+     ["ms5837/base.py", "https://github.com/titonbarua/micropython-ms5837-depth-sensor/ms5837/base.py"],
+     ["ms5837/bar02.py", "https://github.com/titonbarua/micropython-ms5837-depth-sensor/ms5837/bar02.py"],
+     ["ms5837/bar30.py", "https://github.com/titonbarua/micropython-ms5837-depth-sensor/ms5837/bar30.py"],
+     ["ms5837/depth.py", "https://github.com/titonbarua/micropython-ms5837-depth-sensor/ms5837/depth.py"]
+  ],
+  "deps": [],
+  "version": "1.0.0"
+}
