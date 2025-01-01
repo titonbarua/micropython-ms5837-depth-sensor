@@ -14,6 +14,7 @@ from machine import I2C, Pin
 from micropython import const
 from ms5837.bar30 import MS5837SensorBar30
 from ms5837.bar02 import MS5837SensorBar02
+from ms5837.depth import NaiveWaterDepthEstimator
 
 if not os.uname().machine == 'Raspberry Pi Pico with RP2040':
     print("These were written for Raspberry Pi Pico RP2040!")
@@ -237,6 +238,26 @@ def print_data(sensor_type, interval_sec=1.0):
             try:
                 p, t = sensor.read()
                 print(f"P: {p:.2f} KPa, T: {t:.2f} C")
+                time.sleep(interval_sec)
+            except KeyboardInterrupt:
+                break
+    finally:
+        del i2c_obj
+
+
+def print_depth(sensor_type, water_density=1000, interval_sec=1.0):
+    """Continuously estimate depth under water using."""
+    i2c_obj, sensor = _create_sensor(sensor_type, 4096)
+
+    depth_estimator = NaiveWaterDepthEstimator(sensor, water_density)
+    ref = depth_estimator.set_ref_pressure()
+    print(f"Reference pressure set to {ref} KPa")
+
+    try:
+        while True:
+            try:
+                d_m = depth_estimator.read_depth()
+                print("Depth: {:.2f} mm".format(d_m * 1000))
                 time.sleep(interval_sec)
             except KeyboardInterrupt:
                 break
