@@ -4,18 +4,26 @@ This library implements a few micropython classes for reading data out of
 popular MS5837 family pressure sensors directly into a micro-controller. These
 sensors are commonly found in depth sensors made by BlueRobotics.
 
-## Design Objectives
+## Features
 
 - API-s for both blocking reads and asynchronous reads with asyncio.
 - Configurable oversampling rates, as supported by the sensors.
 - Minimal dynamic memory allocation for predictable performance.
 
-## Supported Variants
+## Supported variants
 
 - MS5837-02BA
 - MS5837-30BA
 
-## Example Usage
+## Installation
+
+You can install the library directly into the device using `mpremote` tool -
+
+```bash
+mpremote mip install github:titonbarua/micropython-ms5837-depth-sensor@main
+```
+
+## Example usage
 
 ### Pressure and Temperature Measurement
 
@@ -117,7 +125,7 @@ while True:
 reading.
 
 
-## Running the Tests
+## Running the tests
 
 ### Hardware Setup
 
@@ -160,12 +168,12 @@ mpremote exec `from rp2040_tests import *; print_data(SENSOR_BAR02)`
 ```
 
 
-## Benchmark Results
+## Benchmark results
 
 - Micro-controller: RPi Pico 2040 running at stock speed
 - Micropython version: 1.24.1
 
-|Benchmarking Setup | Depth Sanity Checking with 5 Gallon Water bottle|
+|Benchmarking setup | Depth sanity checking with 5 Gallon water bottle|
 |------------------------------------|-------------------------------------------|
 |![Benchmarking Setup](./images/benchmarking_setup.jpg) | ![Depth Sanity Checking](./images/depth_sensor_sanity_checking_rig.jpg)|
 
