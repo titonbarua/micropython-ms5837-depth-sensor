@@ -248,7 +248,10 @@ the experiment might also be necessary.
 Some of the 30BA variant sensors available in the market don't have their sensor
 ID properly programmed in the PROM as specified by the data-sheet. I have
 encountered this issue in sensors from BlueRobotics and also from raw sensors
-from digikey.
+from digikey. Other people have
+[reported](https://github.com/zephyrproject-rtos/zephyr/issues/60950) the same
+thing.
+
 
 
 ## License
