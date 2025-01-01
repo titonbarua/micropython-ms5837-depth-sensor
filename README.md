@@ -84,7 +84,7 @@ while True:
 ```
 
 The above example is silly as only a single async task is running. Ideally, you
-should be having other async co-routines to utilize the time idly spend waiting
+should be having other async co-routines to utilize the time idly spent waiting
 for the ADC conversion.
 
 
