@@ -25,7 +25,7 @@ mpremote mip install github:titonbarua/micropython-ms5837-depth-sensor@main
 
 ## Example usage
 
-### Pressure and Temperature Measurement
+### Pressure and temperature measurement
 
 Reading data in blocking mode -
 
@@ -53,7 +53,7 @@ while True:
     time.sleep(1.0)
 ```
 
-### Asynchronously Reading Pressure and Temperature
+### Asynchronously reading pressure and temperature
 
 The `async_read` method can be used to read the sensor data asynchronously.
 
@@ -88,7 +88,7 @@ should be having other async co-routines to utilize the time idly spend waiting
 for the ADC conversion.
 
 
-### Depth Estimation
+### Depth estimation
 
 The `NaiveDepthEstimator` class can be used with a sensor object to estimate
 depth.
@@ -127,7 +127,7 @@ reading.
 
 ## Running the tests
 
-### Hardware Setup
+### Hardware setup
 
 The tests were designed for an RP2040 micro-controller running micropython. Two
 sensors, one MS5837-30BA and another MS5837-02BA were connected to I2C channels
@@ -141,7 +141,7 @@ beginning of `tests/rp2040_tests.py` file.
 - Copy the necessary files to micro-controller by running `./tools/copy_files.sh`.
 
 
-### Running Tests
+### Running tests
 
 Benchmark blocking reads:
 
@@ -228,7 +228,7 @@ non-extreme OSR values. This is caused by read errors and subsequent retries. My
 suspicion is on some bugs in the asyncio scheduler or sleep function.
 
 
-## Things You Might Ask
+## TYMA (Things you might ask)
 
 ### Why not directly use the python library provided by BlueRobotics?
 
@@ -244,9 +244,9 @@ various mathematical filtering techniques.
 ### Why is the depth estimation class named `NaiveDepthEstimator`?
 
 Depth estimation with the assumption that water density is constant is a naive
-approach in the context of mobile robotics. The class name prefix is a reminder
-to that hard truth. The constructor also forces you to specify water density for
-the same reason.
+approach in the context of mobile robotics. The class name prefix is a caution
+against forgetting the nuance. In the same spirit, the constructor forces users
+to explicitly specify water density.
 
 For a proper depth estimation, one should do an initial measurement of salinity
 in the water-body. For each sensor reading, density should be estimated by
@@ -264,7 +264,6 @@ encountered this issue in sensors from BlueRobotics and also from raw sensors
 from digikey. Other people have
 [reported](https://github.com/zephyrproject-rtos/zephyr/issues/60950) the same
 thing.
-
 
 
 ## License
