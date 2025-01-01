@@ -43,12 +43,14 @@ class NaiveWaterDepthEstimator(object):
         return ref
 
     def _calc_depth_m(self, abs_pressure):
-        """Calculate depth from given absolute pressure."""
+        """Calculate depth in meters from given absolute pressure."""
         p_rel = abs_pressure - self._p_ref
 
         # Liquid pressure, P = h x rho x g
         #               => h = P / (rho x g)
-        h = p_rel / self._g_x_rho
+        h = (p_rel * 100.0) / self._g_x_rho
+
+        # Unit: m
         return h
 
     def read_depth(self):
