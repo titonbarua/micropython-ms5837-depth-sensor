@@ -116,13 +116,13 @@ sensor = MS5837SensorBar30(
 
 depth_estimator = NaiveDepthEstimator(sensor, _WATER_DENSITY)
 while True:
-    depth = depth_estimator.read()
+    depth = depth_estimator.read_depth()
     print("Depth: {:.2f} cm".format(depth / 100.0))
     time.sleep(1.0)
 ```
 
-`NaiveDepthEstimator` also has an analogous `async_read` method for asynchronous
-reading.
+`NaiveDepthEstimator` also has an analogous `async_read_depth` method for
+asynchronous reading.
 
 
 ## Running the tests
