@@ -121,9 +121,9 @@ reading.
 
 ### Hardware Setup
 
-The tests were designed for an RP2040 micro-controller running micropython. One
-MS5837-30BA and another MS5837-02BA variant sensors were connected to channel 1
-and 0 of the micro-controller. The pin configuration is described in the
+The tests were designed for an RP2040 micro-controller running micropython. Two
+sensors, one MS5837-30BA and another MS5837-02BA were connected to I2C channels
+1 and 0 of the micro-controller. The pin configuration is described in the
 beginning of `tests/rp2040_tests.py` file.
 
 
